@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>江浙沪皖赣 治安・火災・災害モニタリング</title>
+<!-- baseline.js を外部から読み込む -->
+<script src="baseline.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif;background:#0a0e1a;color:#e0e0e0;min-height:100vh;font-size:14px}
+.header{background:linear-gradient(135deg,#1a1f35 0%,#0d1225 100%);padding:14px 20px;border-bottom:1px solid #2a3050;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.header h1{font-size:1rem;color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.header h1 small{font-size:.6rem;background:#2a3050;padding:2px 8px;border-radius:10px;color:#8fa;font-weight:400}
+.header-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#0f0;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.bell{position:relative;cursor:pointer;font-size:1rem;padding:2px 6px}
+.bell .badge-num{position:absolute;top:-4px;right:-4px;background:#f00;color:#fff;font-size:.5rem;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.alarm-banner{background:linear-gradient(90deg,#400 0%,#600 50%,#400 100%);border-bottom:1px solid #800;padding:8px 20px;display:flex;align-items:center;gap:10px;animation:alarmFlash 2s infinite;overflow-x:auto}
+@keyframes alarmFlash{0%,100%{opacity:1}50%{opacity:.92}}
+.alarm-banner.hidden{display:none}
+.alarm-banner .alarm-icon{font-size:1.1rem;flex-shrink:0}
+.alarm-banner .alarm-text{font-size:.75rem;color:#fcc;white-space:nowrap}
+.alarm-banner .alarm-text strong{color:#f55}
+.progress-bar{height:2px;background:#1a2040;position:relative;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#c00,#f00);width:0%;transition:width .3s}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;padding:12px 20px}
+.kpi{background:#121830;border:1px solid #2a3050;border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .2s}
+.kpi:hover{border-color:#4a5080;transform:translateY(-1px)}
+.kpi .num{font-size:1.5rem;font-weight:700;line-height:1.2}
+.kpi .label{font-size:.6rem;color:#8a8fa8}
+.kpi.fire .num{color:#f55}.kpi.crime .num{color:#f0f}.kpi.disaster .num{color:#fa0}.kpi.accident .num{color:#0af}.kpi.total .num{color:#fff}
+.controls{padding:10px 20px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #1a2040}
+.region-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.region-tab{background:#1a2040;border:1px solid #3a4080;color:#adf;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.65rem;transition:all .2s}
+.region-tab:hover{background:#2a3080}
+.region-tab.active{background:#3a50c0;border-color:#5a70e0;color:#fff}
+.type-tabs{display:flex;gap:4px;margin-left:8px;flex-wrap:wrap}
+.type-tab{background:#1a2040;border:1px solid #3a4080;color:#adf;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.65rem}
+.type-tab:hover{background:#2a3080}
+.type-tab.active{background:#c00;border-color:#f00;color:#fff}
+.switch-group{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:.6rem;color:#6a7090}
+.switch{position:relative;width:32px;height:16px;background:#2a3050;border-radius:8px;cursor:pointer;transition:.3s}
+.switch.on{background:#3a50c0}
+.switch::after{content:'';position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.3s}
+.switch.on::after{left:18px}
+.events{padding:0 20px 20px}
+.event-card{background:#121830;border:1px solid #2a3050;border-radius:8px;padding:10px 12px;margin-bottom:6px;position:relative;overflow:hidden;cursor:pointer;transition:all .2s}
+.event-card:hover{border-color:#5a70e0;box-shadow:0 0 12px rgba(90,112,224,.3);transform:translateY(-1px)}
+.event-card:active{transform:translateY(0);opacity:.8}
+.event-card.fire{border-left:3px solid #f55}
+.event-card.crime{border-left:3px solid #f0f}
+.event-card.disaster{border-left:3px solid #fa0}
+.event-card.accident{border-left:3px solid #0af}
+.event-card.resolved{opacity:.5;border-left:3px solid #555}
+.event-card .title{font-size:.8rem;font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.event-card .region-tag{font-size:.55rem;padding:1px 5px;border-radius:3px;font-weight:600}
+.event-card .detail{font-size:.7rem;color:#aab;line-height:1.5;margin-bottom:4px}
+.event-card .meta{font-size:.6rem;color:#6a7090;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.event-card .link-hint{font-size:.55rem;color:#5a70e0;margin-left:auto;opacity:0;transition:opacity .2s}
+.event-card:hover .link-hint{opacity:1}
+.badge-new{font-size:.5rem;background:#f00;color:#fff;padding:1px 5px;border-radius:3px;animation:flash 1.5s 3}
+.badge-verify{font-size:.5rem;background:#a50;color:#fff;padding:1px 5px;border-radius:3px}
+.badge-resolved{font-size:.5rem;background:#353;color:#8c8;padding:1px 5px;border-radius:3px}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.3}}
+.popup-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding-top:50px;backdrop-filter:blur(4px)}
+.popup-overlay.hidden{display:none}
+.popup{background:#1a1f35;border:2px solid #f00;border-radius:14px;padding:18px;max-width:420px;width:90%;box-shadow:0 0 40px rgba(255,0,0,.4);animation:slideIn .3s ease}
+.popup.fire{border-color:#f55;box-shadow:0 0 40px rgba(255,85,85,.3)}
+.popup.crime{border-color:#f0f;box-shadow:0 0 40px rgba(255,0,255,.3)}
+.popup.disaster{border-color:#fa0;box-shadow:0 0 40px rgba(255,170,0,.3)}
+@keyframes slideIn{from{transform:translateY(-30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.popup h2{font-size:.9rem;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.popup .popup-time{font-size:.6rem;color:#6a7090;margin-bottom:8px}
+.popup .popup-detail{font-size:.75rem;line-height:1.6;color:#ccc;margin-bottom:12px}
+.popup-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.popup-actions button{background:#2a3050;border:1px solid #4a5080;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.7rem}
+.popup-actions button.primary{background:#c00;border-color:#f00}
+.popup-actions button.mute{background:#333;border-color:#555}
+.bell-panel{position:fixed;top:48px;right:20px;background:#1a1f35;border:1px solid #3a4080;border-radius:10px;width:300px;max-height:360px;overflow-y:auto;z-index:999;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.bell-panel.show{display:block}
+.bell-item{padding:8px 12px;border-bottom:1px solid #2a3050;font-size:.7rem;cursor:pointer}
+.bell-item:last-child{border-bottom:none}
+.bell-item:hover{background:#2a3050}
+.bell-item .bell-title{font-weight:600;margin-bottom:2px}
+.bell-item .bell-time{font-size:.55rem;color:#5a6080}
+.footer{padding:8px 20px;font-size:.55rem;color:#4a5080;text-align:center;border-top:1px solid #1a2040}
+.region-js{background:#1a3050;color:#8cf}.region-zj{background:#301a30;color:#f8f}.region-sh{background:#1a3a1a;color:#8f8}.region-ah{background:#3a2a1a;color:#fc8}.region-jx{background:#1a1a3a;color:#aaf}
+/* 通知許可ボタン */
+.notify-btn{background:#2a3050;border:1px solid #4a5080;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.6rem;margin-left:8px}
+.notify-btn.enabled{background:#353;border-color:#5a5}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🚨 江浙沪皖赣 治安・火災・災害モニタリング <small id="versionTag">--</small></h1>
+<div class="header-right">
+<div class="bell" onclick="toggleBell()">🔔<span class="badge-num hidden" id="bellBadge">0</span></div>
+<button class="notify-btn" id="notifyBtn" onclick="requestNotify()">🔔 通知許可</button>
+<div style="display:flex;align-items:center;gap:4px;font-size:.65rem;color:#6a7090"><div class="status-dot"></div>監視中</div>
+</div>
+</div>
+<div class="alarm-banner hidden" id="alarmBanner">
+<span class="alarm-icon">🚨</span>
+<span class="alarm-text" id="alarmText"></span>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+<div class="bell-panel" id="bellPanel"></div>
+<div class="kpi-row">
+<div class="kpi total" onclick="filterAll()"><div class="num" id="kpiTotal">0</div><div class="label">総件数</div></div>
+<div class="kpi fire" onclick="filterType('fire')"><div class="num" id="kpiFire">0</div><div class="label">🔥 火災</div></div>
+<div class="kpi crime" onclick="filterType('crime')"><div class="num" id="kpiCrime">0</div><div class="label">🔪 治安・刑事</div></div>
+<div class="kpi disaster" onclick="filterType('disaster')"><div class="num" id="kpiDisaster">0</div><div class="label">🌊 災害</div></div>
+<div class="kpi accident" onclick="filterType('accident')"><div class="num" id="kpiAccident">0</div><div class="label">🚗 事故</div></div>
+</div>
+<div class="controls">
+<div class="region-tabs">
+<div class="region-tab active" onclick="filterRegion('all',this)">全域</div>
+<div class="region-tab" onclick="filterRegion('js',this)">江苏</div>
+<div class="region-tab" onclick="filterRegion('zj',this)">浙江</div>
+<div class="region-tab" onclick="filterRegion('sh',this)">上海</div>
+<div class="region-tab" onclick="filterRegion('ah',this)">安徽</div>
+<div class="region-tab" onclick="filterRegion('jx',this)">江西</div>
+</div>
+<div class="type-tabs">
+<div class="type-tab active" onclick="filterType('all',this)">全種別</div>
+<div class="type-tab" onclick="filterType('fire',this)">🔥火災</div>
+<div class="type-tab" onclick="filterType('crime',this)">🔪治安</div>
+<div class="type-tab" onclick="filterType('disaster',this)">🌊災害</div>
+<div class="type-tab" onclick="filterType('accident',this)">🚗事故</div>
+</div>
+<div class="switch-group"><span>処理済を隠す</span><div class="switch on" id="resolvedSwitch" onclick="toggleResolved()"></div></div>
+<div class="switch-group"><span>自動ポップアップ</span><div class="switch on" id="popupSwitch" onclick="togglePopup()"></div></div>
+<span style="font-size:.6rem;color:#5a6080;margin-left:8px" id="lastUpdate"></span>
+</div>
+<div class="events" id="eventsArea"><div class="loading" style="text-align:center;padding:40px;color:#5a6080">読み込み中...</div></div>
+<div class="popup-overlay hidden" id="popupOverlay">
+<div class="popup" id="popupContent">
+<h2 id="popupTitle"></h2>
+<div class="popup-time" id="popupTime"></div>
+<div class="popup-detail" id="popupDetail"></div>
+<div class="popup-actions">
+<button class="mute" onclick="snoozePopup()">30分ミュート</button>
+<button onclick="closePopup()">今は閉じる</button>
+<button class="primary" onclick="closePopupAndMute()">以後通知OFF</button>
+</div>
+</div>
+</div>
+<div class="footer">🔗 カードクリックで公式ソースへ | 江浙沪皖赣 治安・火災・災害モニタリング</div>
+
+<script>
+// ===== 最小版ロジック =====
+let baselineData = {version:"0",generated_at:"",events:[]};
+let popupEnabled = true, resolvedHidden = true, currentRegion='all', currentType='all', snoozeUntil=0;
+let seenEvents = JSON.parse(localStorage.getItem('seenEvents')||'[]');
+let lastVersion = '';
+
+// baseline.js から window.BASELINE を読み込み
+function loadFromScript(){
+  if(window.BASELINE){
+    baselineData = window.BASELINE;
+    return true;
+  }
+  return false;
+}
+
+document.getElementById('versionTag').textContent = 'v'+ (window.BASELINE?.version||'--');
+
+function init(){
+  loadFromScript();
+  if(baselineData.version !== '0'){
+    document.getElementById('versionTag').textContent = 'v'+baselineData.version+' | '+baselineData.generated_at.slice(0,16).replace('T',' ');
+  }
+  renderKPI(); renderEvents(); updateProgress();
+  setInterval(updateProgress,5000);
+  document.getElementById('lastUpdate').textContent = '最終更新: '+new Date().toLocaleString('ja-JP');
+  updateBell(); updateAlarmBanner();
+  
+  // 初回：未見の新着イベントがあれば通知
+  const news = baselineData.events.filter(e=>e.is_new && !e.resolved && !seenEvents.includes(e.id));
+  if(news.length>0 && popupEnabled && Date.now()>snoozeUntil){
+    showPopup(news[0]);
+    seenEvents.push(news[0].id);
+    localStorage.setItem('seenEvents',JSON.stringify(seenEvents));
+    systemNotify(news[0]);
+  }
+  
+  // 通知ボタン状態
+  updateNotifyBtn();
+  
+  // ポーリング開始（30秒ごとにファイル更新をチェック）
+  setInterval(pollUpdate, 30000);
+}
+
+// ポーリング：baseline.js を再取得してバージョン変化を検知
+async function pollUpdate(){
+  try{
+    const res = await fetch('baseline.js?t='+Date.now(), {cache:'no-store'});
+    const text = await res.text();
+    // 新しいバージョンを抽出
+    const verMatch = text.match(/version:\s*"([^"]+)"/);
+    if(verMatch && verMatch[1] !== baselineData.version){
+      // バージョンが変わった → リロードして新データを適用
+      const oldEvents = baselineData.events.map(e=>e.id);
+      // 再パース
+      eval(text); // baseline.js の内容を再評価
+      loadFromScript();
+      // 新着イベントを探す
+      const newOnes = baselineData.events.filter(e=>!oldEvents.includes(e.id) && !e.resolved);
+      if(newOnes.length>0 && popupEnabled && Date.now()>snoozeUntil){
+        newOnes.forEach(ev=>{
+          if(!seenEvents.includes(ev.id)){
+            showPopup(ev);
+            systemNotify(ev);
+            seenEvents.push(ev.id);
+          }
+        });
+        localStorage.setItem('seenEvents',JSON.stringify(seenEvents));
+      }
+      renderKPI(); renderEvents(); updateAlarmBanner(); updateBell();
+      document.getElementById('versionTag').textContent = 'v'+baselineData.version+' | '+baselineData.generated_at.slice(0,16).replace('T',' ');
+      document.getElementById('lastUpdate').textContent = '最終更新: '+new Date().toLocaleString('ja-JP');
+    }
+  }catch(e){console.log('poll failed',e);}
+}
+
+// ブラウザシステム通知
+function systemNotify(ev){
+  if(!("Notification" in window)) return;
+  if(Notification.permission === "granted"){
+    const ic = {fire:'🔥',crime:'🔪',disaster:'🌊',accident:'🚗'};
+    new Notification((ic[ev.type]||'🚨')+' '+ev.region_name+' 新着アラート', {
+      body: ev.title + '\n' + ev.detail.substring(0,50),
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🚨</text></svg>'
+    });
+  }
+}
+
+function requestNotify(){
+  if(!("Notification" in window)){
+    alert('このブラウザは通知に対応していません');
+    return;
+  }
+  Notification.requestPermission().then(perm=>{
+    updateNotifyBtn();
+    if(perm==='granted'){
+      new Notification('通知が有効になりました',{body:'新しい事件・災害があった際に通知されます'});
+    }
+  });
+}
+
+function updateNotifyBtn(){
+  const btn = document.getElementById('notifyBtn');
+  if(!("Notification" in window)){btn.style.display='none';return;}
+  if(Notification.permission==='granted'){
+    btn.textContent='✅ 通知ON';
+    btn.classList.add('enabled');
+  }else{
+    btn.textContent='🔔 通知許可';
+    btn.classList.remove('enabled');
+  }
+}
+
+function updateProgress(){const n=new Date();document.getElementById('progressFill').style.width=((n.getSeconds()+n.getMinutes()*60)/3600*100)+'%';}
+function updateAlarmBanner(){
+  const o=baselineData.events.filter(e=>!e.resolved&&(e.type==='crime'||e.type==='fire'));
+  const b=document.getElementById('alarmBanner'),t=document.getElementById('alarmText');
+  if(o.length>0){t.innerHTML='進行中: '+o.map(e=>`<strong>${e.region_name} ${e.title}</strong>`).join(' ｜ ');b.classList.remove('hidden');}else b.classList.add('hidden');
+}
+function renderKPI(){
+  document.getElementById('kpiTotal').textContent=baselineData.events.length;
+  document.getElementById('kpiFire').textContent=baselineData.events.filter(e=>e.type==='fire').length;
+  document.getElementById('kpiCrime').textContent=baselineData.events.filter(e=>e.type==='crime').length;
+  document.getElementById('kpiDisaster').textContent=baselineData.events.filter(e=>e.type==='disaster').length;
+  document.getElementById('kpiAccident').textContent=baselineData.events.filter(e=>e.type==='accident').length;
+}
+function renderEvents(){
+  const area=document.getElementById('eventsArea');area.innerHTML='';
+  let f=baselineData.events;
+  if(currentRegion!=='all')f=f.filter(e=>e.region===currentRegion);
+  if(currentType!=='all')f=f.filter(e=>e.type===currentType);
+  if(resolvedHidden)f=f.filter(e=>!e.resolved);
+  const on=f.filter(e=>!e.resolved), re=f.filter(e=>e.resolved);
+  if(on.length>0){area.innerHTML+='<div style="font-size:.7rem;color:#f99;padding:6px 0;border-bottom:1px solid #2a3050;margin-bottom:6px">🔴 進行中・要監視</div>';on.forEach(e=>area.appendChild(makeCard(e)));}
+  if(re.length>0){area.innerHTML+='<div style="font-size:.7rem;color:#888;padding:6px 0;border-bottom:1px solid #2a3050;margin-bottom:6px;margin-top:8px">✅ 処理済・アーカイブ</div>';re.forEach(e=>area.appendChild(makeCard(e)));}
+  if(f.length===0)area.innerHTML='<div style="text-align:center;padding:20px;color:#5a6080;font-size:.75rem">該当する事案はありません</div>';
+}
+function makeCard(e){
+  const d=document.createElement('div');
+  d.className=`event-card ${e.type} ${e.resolved?'resolved':''}`;
+  d.onclick=()=>window.open(e.source_url,'_blank');
+  const rc=`region-${e.region}`, isNew=e.is_new&&!seenEvents.includes(e.id);
+  d.innerHTML=`<div class="title"><span class="region-tag ${rc}">${e.region_name}</span>${e.title}${isNew?'<span class="badge-new">NEW</span>':''}${e.verify?'<span class="badge-verify">要確認</span>':''}${e.resolved?'<span class="badge-resolved">処理済</span>':''}</div><div class="detail">${e.detail}</div><div class="meta"><span>📌 ${e.source}</span><span>🕐 ${e.src_time}</span><span>状態: ${e.status}</span><span class="link-hint">🔗 クリックで公式情報へ</span></div>`;
+  return d;
+}
+function filterRegion(r,btn){currentRegion=r;document.querySelectorAll('.region-tab').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');renderEvents();}
+function filterType(t,btn){currentType=t;document.querySelectorAll('.type-tab').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');renderEvents();}
+function filterAll(){currentRegion='all';currentType='all';document.querySelectorAll('.region-tab,.type-tab').forEach(b=>b.classList.remove('active'));document.querySelector('.region-tab').classList.add('active');document.querySelector('.type-tab').classList.add('active');renderEvents();}
+function toggleResolved(){resolvedHidden=!resolvedHidden;const s=document.getElementById('resolvedSwitch');if(resolvedHidden)s.classList.add('on');else s.classList.remove('on');renderEvents();}
+function togglePopup(){popupEnabled=!popupEnabled;const s=document.getElementById('popupSwitch');if(popupEnabled)s.classList.add('on');else s.classList.remove('on');}
+function showPopup(ev){
+  if(!popupEnabled||Date.now()<snoozeUntil)return;
+  const ov=document.getElementById('popupOverlay'),p=document.getElementById('popupContent');
+  p.className=`popup ${ev.type}`;
+  const ic={fire:'🔥',crime:'🔪',disaster:'🌊',accident:'🚗'};
+  document.getElementById('popupTitle').innerHTML=`${ic[ev.type]||'🚨'} ${ev.type==='fire'?'火災':ev.type==='crime'?'治安事件':ev.type==='disaster'?'災害':'事故'}アラート: ${ev.title}`;
+  document.getElementById('popupTime').textContent=`${ev.region_name} | ${ev.src_time} | ${ev.source}`;
+  document.getElementById('popupDetail').textContent=ev.detail;
+  ov.classList.remove('hidden');
+  if(ev.type==='fire'||ev.type==='crime'){try{const a=new AudioContext();const o=a.createOscillator();o.frequency.value=880;o.connect(a.destination);o.start();setTimeout(()=>o.stop(),400);}catch(e){}}
+}
+function closePopup(){document.getElementById('popupOverlay').classList.add('hidden');}
+function closePopupAndMute(){popupEnabled=false;document.getElementById('popupSwitch').classList.remove('on');closePopup();}
+function snoozePopup(){snoozeUntil=Date.now()+1800000;closePopup();}
+function toggleBell(){
+  const p=document.getElementById('bellPanel');p.classList.toggle('show');
+  if(p.classList.contains('show')){
+    p.innerHTML=baselineData.events.filter(e=>!e.resolved).slice(0,10).map(e=>`<div class="bell-item" onclick="window.open('${e.source_url}','_blank')"><div class="bell-title" style="color:${e.type==='fire'?'#f99':e.type==='crime'?'#f9f':e.type==='disaster'?'#fc9':'#9cf'}">${e.region_name} ${e.title}</div><div class="bell-time">${e.src_time} | ${e.status}</div></div>`).join('');
+  }
+}
+function updateBell(){const b=document.getElementById('bellBadge');const c=baselineData.events.filter(e=>!e.resolved).length;if(c>0){b.textContent=c;b.classList.remove('hidden');}}
+document.addEventListener('contextmenu',e=>{e.preventDefault();showPopup({type:'crime',title:'【デモ】上海・学校周辺での傷害事件',src_time:'2026-11-14 14:00',source:'上海公安（デモ）',detail:'デモ通知です。右クリックで発報しました。',region_name:'上海',status:'調査中',resolved:false});systemNotify({type:'crime',title:'【デモ】上海・学校周辺での傷害事件',region_name:'上海',detail:'デモ通知です。'});});
+init();
+</script>
+</body>
+</html>
